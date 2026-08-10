@@ -10,6 +10,7 @@ ref_data/
 .codex_tmp
 *.ipynb
 .env
+.DS_Store
 
 # Virtual environments
 .venv
