@@ -34,18 +34,27 @@ END_TIMESTAMP = int(
 PAGE_SIZE = 500
 
 FIELDS = [
+    # 게임 식별 및 분석 대상 필터
     "id",
     "name",
     "game_type",
-    "game_status",
     "parent_game",
     "version_parent",
+    "game_status",
+
+    # 출시일 및 플랫폼 분류
     "first_release_date",
     "release_dates.date",
+    "release_dates.date_format.format",
     "release_dates.platform",
-    "release_dates.platform.name",
-    "platforms",
     "platforms.name",
+
+    # 장르 및 평가
+    "genres.name",
+    "rating",
+    "rating_count",
+    "aggregated_rating",
+    "aggregated_rating_count",
 ]
 
 token_response = requests.post(
