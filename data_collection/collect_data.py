@@ -8,7 +8,7 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 
-
+# 환경변수 로드
 load_dotenv()
 
 CLIENT_ID = os.getenv("IGDB_CLIENT_ID")
@@ -17,20 +17,25 @@ CLIENT_SECRET = os.getenv("IGDB_CLIENT_SECRET")
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 GAMES_URL = "https://api.igdb.com/v4/games"
 
+# 데이터의 시작 날짜
 START_TIMESTAMP = int(
     datetime(2017, 1, 1, tzinfo=timezone.utc).timestamp()
 )
 
+# 데이터의 마지막 날짜
 END_TIMESTAMP = int(
     datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp()
 )
 
+# 한번에 가져올 값의 개수
 PAGE_SIZE = 500
 
+# 결과물 경로 지정
 OUTPUT_DIRECTORY = Path("data_collection/raw_data")
 JSON_PATH = OUTPUT_DIRECTORY / "games.json"
 CSV_PATH = OUTPUT_DIRECTORY / "games.csv"
 
+# 가져올 데이터의 필드 이름
 FIELDS = [
     # 게임 식별 및 분석 대상 필터
     "id",
@@ -68,6 +73,7 @@ def get_access_token():
         timeout=30,
     )
 
+    # 400번대, 500번대 오류 발생시 HTTPError 발생시키는 메서드
     token_response.raise_for_status()
 
     access_token = token_response.json()["access_token"]
@@ -114,6 +120,7 @@ def collect_games(headers):
             time.sleep(2)
             continue
 
+        # 400번대, 500번대 오류 발생시 HTTPError 발생시키는 메서드
         response.raise_for_status()
 
         games = response.json()
@@ -122,6 +129,7 @@ def collect_games(headers):
             break
 
         all_games.extend(games)
+        # id 키의 최댓값을 last_game_id에 넣어 다음 쿼리 준비
         last_game_id = max(game["id"] for game in games)
 
         print(
@@ -129,6 +137,7 @@ def collect_games(headers):
             f"누적 {len(all_games):,}개"
         )
 
+        # 500개씩 가져오고 마지막에 500개 미만의 값을 받으면 종료
         if len(games) < PAGE_SIZE:
             break
 
@@ -149,7 +158,9 @@ def save_json(games, output_path):
         json.dump(
             games,
             file,
+            # 기본값 True일때 한글을 유니코드 형태로 저장
             ensure_ascii=False,
+            # 들여쓰기 옵션, 가독성 향상
             indent=2,
         )
 
@@ -166,6 +177,7 @@ def save_csv(games, output_path):
         encoding="utf-8-sig",
     )
 
+    # resolve() -> 절대 경로로 변경
     print(f"CSV 저장 완료: {output_path.resolve()}")
     print(f"데이터 크기: {games_df.shape}")
 
