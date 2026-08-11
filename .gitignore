@@ -14,3 +14,7 @@ ref_data/
 
 # Virtual environments
 .venv
+
+# codex
+.superpowers
+tests
