@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 
-# 경로와 날짜 설정
+# 경로와 기간 설정
 # 파일명은 OUTPUT_FILE_NAME 값만 바꾸면 쉽게 변경할 수 있습니다.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 INPUT_FILE = PROJECT_ROOT / "data_collection/raw_data/games.json"
@@ -15,7 +15,6 @@ OUTPUT_FOLDER = PROJECT_ROOT / "preprocessing/processed_data"
 OUTPUT_FILE_NAME = "games_processed.csv"
 OUTPUT_FILE = OUTPUT_FOLDER / OUTPUT_FILE_NAME
 
-SNAPSHOT_DATE = "2026-08-10"
 START_DATE = "2017-01-01"
 END_DATE = "2026-01-01"
 
@@ -31,24 +30,15 @@ FILTER_NUMBER_COLUMNS = [
     "rating_count",
 ]
 
-SOURCE_COLUMNS = [
+FINAL_COLUMNS = [
     "id",
     "name",
-    "first_release_date",
     "genres",
     "rating",
     "rating_count",
-    "aggregated_rating",
-    "aggregated_rating_count",
-]
-
-DERIVED_COLUMNS = [
     "release_year",
-    "release_age_days",
     "initial_platform_count_30d",
     "initial_platform_group",
-    "lifetime_platform_count",
-    "expansion_status",
     "rating_count_log",
 ]
 
@@ -112,47 +102,13 @@ def filter_games(games_df):
     return filtered_df
 
 
-def make_platform_dataframe(games_df):
-    """게임별 플랫폼 목록을 게임-플랫폼 단위 행으로 변환합니다."""
-    platform_rows = []
-
-    for game_id, platforms in zip(games_df["id"], games_df["platforms"]):
-        if isinstance(platforms, list):
-            for platform in platforms:
-                if isinstance(platform, dict):
-                    platform_id = platform.get("id")
-                    platform_name = platform.get("name")
-
-                    if platform_id is not None:
-                        platform_rows.append({
-                            "id": game_id,
-                            "platform_id": platform_id,
-                            "platform_name": platform_name,
-                        })
-
-    platform_df = pd.DataFrame(
-        platform_rows,
-        columns=["id", "platform_id", "platform_name"],
-    )
-
-    platform_df["platform_id"] = pd.to_numeric(
-        platform_df["platform_id"],
-        errors="coerce",
-    )
-
-    duplicate_count = platform_df.duplicated(
-        subset=["id", "platform_id"]
-    ).sum()
-
-    platform_df = platform_df.dropna(subset=["platform_id"])
-    platform_df = platform_df.drop_duplicates(subset=["id", "platform_id"])
-
-    print("플랫폼 중복 기록 수:", duplicate_count)
-    return platform_df
-
-
 def make_release_dataframe(games_df):
     """중첩된 출시 기록을 게임-플랫폼-출시일 단위로 변환합니다."""
+    games_df = games_df.copy()
+
+    if "release_dates" not in games_df.columns:
+        games_df["release_dates"] = None
+
     release_rows = []
 
     for game_id, release_dates in zip(games_df["id"], games_df["release_dates"]):
@@ -218,8 +174,8 @@ def make_platform_sets(dataframe):
     return platform_sets
 
 
-def classify_platforms(games_df, platform_df, release_df):
-    """초기 플랫폼 수와 30일 이후 확장 상태를 계산합니다."""
+def classify_platforms(games_df, release_df):
+    """최초 출시 후 30일 이내 플랫폼 수와 그룹을 계산합니다."""
     exact_release_df = release_df[
         (release_df["date_format"] == EXACT_DATE_FORMAT)
         & release_df["platform_id"].notna()
@@ -250,25 +206,13 @@ def classify_platforms(games_df, platform_df, release_df):
         keep="first",
     )
 
-    after_30d_release_df = exact_release_df[
-        exact_release_df["days_from_first"] > 30
-    ].drop_duplicates(
-        subset=["id", "platform_id"]
-    )
-
     initial_platforms = make_platform_sets(initial_release_df)
-    lifetime_platforms = make_platform_sets(platform_df)
-    after_30d_platforms = make_platform_sets(after_30d_release_df)
 
     classification_rows = []
 
     for game_id in games_df["id"]:
         initial_ids = initial_platforms.get(game_id, set())
-        lifetime_ids = lifetime_platforms.get(game_id, set())
-        after_30d_ids = after_30d_platforms.get(game_id, set())
-
         initial_count = len(initial_ids)
-        lifetime_count = len(lifetime_ids)
 
         if initial_count == 1:
             platform_group = "single"
@@ -277,27 +221,10 @@ def classify_platforms(games_df, platform_df, release_df):
         else:
             platform_group = None
 
-        non_initial_ids = lifetime_ids - initial_ids
-        confirmed_ids = (after_30d_ids - initial_ids) & lifetime_ids
-
-        if len(confirmed_ids) > 0:
-            expansion_status = "confirmed_expanded"
-        elif len(non_initial_ids) == 0:
-            expansion_status = "not_expanded"
-        else:
-            expansion_status = "unknown"
-
-        if initial_count > lifetime_count:
-            raise ValueError(
-                "초기 플랫폼 수가 전체 플랫폼 수보다 큽니다."
-            )
-
         classification_rows.append({
             "id": game_id,
             "initial_platform_count_30d": initial_count,
             "initial_platform_group": platform_group,
-            "lifetime_platform_count": lifetime_count,
-            "expansion_status": expansion_status,
         })
 
     classification_df = pd.DataFrame(classification_rows)
@@ -326,8 +253,8 @@ def genre_to_text(genres):
     return "|".join(genre_names)
 
 
-def make_final_dataframe(games_df, classification_df, snapshot_date):
-    """게임 정보와 플랫폼 분류를 결합하고 최종 컬럼을 생성합니다."""
+def make_final_dataframe(games_df, classification_df):
+    """게임 정보와 플랫폼 분류를 결합하고 분석용 컬럼을 생성합니다."""
     final_df = pd.merge(
         games_df,
         classification_df,
@@ -339,37 +266,25 @@ def make_final_dataframe(games_df, classification_df, snapshot_date):
         final_df["initial_platform_count_30d"] > 0
     ].copy()
 
-    # IGDB에서 값이 없으면 해당 컬럼 자체가 생략될 수 있습니다.
-    for column in SOURCE_COLUMNS:
-        if column not in final_df.columns:
-            final_df[column] = None
+    if "genres" not in final_df.columns:
+        final_df["genres"] = None
 
     final_df["genres"] = final_df["genres"].apply(genre_to_text)
+    final_df = final_df[
+        final_df["genres"] != ""
+    ].copy()
+
     final_df["rating_count"] = final_df["rating_count"].astype("Int64")
-
-    final_df["aggregated_rating_count"] = pd.to_numeric(
-        final_df["aggregated_rating_count"],
-        errors="coerce",
-    ).fillna(0).astype("Int64")
-
-    snapshot_datetime = pd.to_datetime(snapshot_date, utc=True)
 
     final_df["release_year"] = final_df[
         "first_release_datetime"
     ].dt.year
-    final_df["release_age_days"] = (
-        snapshot_datetime
-        - final_df["first_release_datetime"]
-    ).dt.days
     final_df["rating_count_log"] = np.log1p(
         final_df["rating_count"]
     )
-    final_df["first_release_date"] = final_df[
-        "first_release_datetime"
-    ].dt.strftime("%Y-%m-%d")
 
     final_df = final_df[
-        SOURCE_COLUMNS + DERIVED_COLUMNS
+        FINAL_COLUMNS
     ].sort_values(
         by=["release_year", "id"]
     ).reset_index(drop=True)
@@ -377,13 +292,23 @@ def make_final_dataframe(games_df, classification_df, snapshot_date):
     if final_df["id"].duplicated().sum() > 0:
         raise ValueError("최종 데이터에 중복 게임 ID가 있습니다.")
 
-    if (
-        final_df["initial_platform_count_30d"]
-        > final_df["lifetime_platform_count"]
-    ).sum() > 0:
-        raise ValueError(
-            "초기 플랫폼 수가 전체 플랫폼 수보다 큽니다."
-        )
+    if final_df[["rating", "rating_count"]].isna().sum().sum() > 0:
+        raise ValueError("최종 데이터에 평가 결측치가 있습니다.")
+
+    if (final_df["rating_count"] <= 0).sum() > 0:
+        raise ValueError("평가 수가 0 이하인 게임이 있습니다.")
+
+    single_error = (
+        (final_df["initial_platform_count_30d"] == 1)
+        & (final_df["initial_platform_group"] != "single")
+    ).sum()
+    multi_error = (
+        (final_df["initial_platform_count_30d"] >= 2)
+        & (final_df["initial_platform_group"] != "multi")
+    ).sum()
+
+    if single_error > 0 or multi_error > 0:
+        raise ValueError("초기 플랫폼 그룹 분류가 올바르지 않습니다.")
 
     print("최종 게임 수:", len(final_df))
     return final_df
@@ -406,17 +331,14 @@ def save_csv(final_df, output_path):
 def main():
     games_df = load_json(INPUT_FILE)
     filtered_df = filter_games(games_df)
-    platform_df = make_platform_dataframe(filtered_df)
     release_df = make_release_dataframe(filtered_df)
     classification_df = classify_platforms(
         filtered_df,
-        platform_df,
         release_df,
     )
     final_df = make_final_dataframe(
         filtered_df,
         classification_df,
-        SNAPSHOT_DATE,
     )
     save_csv(final_df, OUTPUT_FILE)
 
