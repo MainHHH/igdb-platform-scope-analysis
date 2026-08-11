@@ -48,7 +48,7 @@ DERIVED_COLUMNS = [
     "initial_platform_count_30d",
     "initial_platform_group",
     "lifetime_platform_count",
-    "expanded_after_30d",
+    "expansion_status",
     "rating_count_log",
 ]
 
@@ -219,7 +219,7 @@ def make_platform_sets(dataframe):
 
 
 def classify_platforms(games_df, platform_df, release_df):
-    """초기 플랫폼 수와 30일 이후 확장 여부를 계산합니다."""
+    """초기 플랫폼 수와 30일 이후 확장 상태를 계산합니다."""
     exact_release_df = release_df[
         (release_df["date_format"] == EXACT_DATE_FORMAT)
         & release_df["platform_id"].notna()
@@ -250,14 +250,22 @@ def classify_platforms(games_df, platform_df, release_df):
         keep="first",
     )
 
+    after_30d_release_df = exact_release_df[
+        exact_release_df["days_from_first"] > 30
+    ].drop_duplicates(
+        subset=["id", "platform_id"]
+    )
+
     initial_platforms = make_platform_sets(initial_release_df)
     lifetime_platforms = make_platform_sets(platform_df)
+    after_30d_platforms = make_platform_sets(after_30d_release_df)
 
     classification_rows = []
 
     for game_id in games_df["id"]:
         initial_ids = initial_platforms.get(game_id, set())
         lifetime_ids = lifetime_platforms.get(game_id, set())
+        after_30d_ids = after_30d_platforms.get(game_id, set())
 
         initial_count = len(initial_ids)
         lifetime_count = len(lifetime_ids)
@@ -269,7 +277,15 @@ def classify_platforms(games_df, platform_df, release_df):
         else:
             platform_group = None
 
-        expanded_after_30d = len(lifetime_ids - initial_ids) > 0
+        non_initial_ids = lifetime_ids - initial_ids
+        confirmed_ids = (after_30d_ids - initial_ids) & lifetime_ids
+
+        if len(confirmed_ids) > 0:
+            expansion_status = "confirmed_expanded"
+        elif len(non_initial_ids) == 0:
+            expansion_status = "not_expanded"
+        else:
+            expansion_status = "unknown"
 
         if initial_count > lifetime_count:
             raise ValueError(
@@ -281,7 +297,7 @@ def classify_platforms(games_df, platform_df, release_df):
             "initial_platform_count_30d": initial_count,
             "initial_platform_group": platform_group,
             "lifetime_platform_count": lifetime_count,
-            "expanded_after_30d": expanded_after_30d,
+            "expansion_status": expansion_status,
         })
 
     classification_df = pd.DataFrame(classification_rows)
