@@ -1,5 +1,3 @@
-"""수업에서 배운 문법을 사용한 IGDB 게임 데이터 전처리 코드"""
-
 import json
 from pathlib import Path
 
@@ -8,7 +6,7 @@ import pandas as pd
 
 
 # 경로와 기간 설정
-# 파일명은 OUTPUT_FILE_NAME 값만 바꾸면 쉽게 변경할 수 있습니다.
+# 파일명은 OUTPUT_FILE_NAME 값만 바꾸면 쉽게 변경 가능
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 INPUT_FILE = PROJECT_ROOT / "data_collection/raw_data/games.json"
 OUTPUT_FOLDER = PROJECT_ROOT / "preprocessing/processed_data"
@@ -18,9 +16,12 @@ OUTPUT_FILE = OUTPUT_FOLDER / OUTPUT_FILE_NAME
 START_DATE = "2017-01-01"
 END_DATE = "2026-01-01"
 
+# game_status에서 제외할 값들
 EXCLUDED_GAME_STATUS = [2, 3, 4, 6, 7]
+# 포맷 비교용
 EXACT_DATE_FORMAT = "YYYYMMDD"
 
+# 필터링과 숫자형 판단 기준
 FILTER_NUMBER_COLUMNS = [
     "game_type",
     "parent_game",
@@ -30,6 +31,7 @@ FILTER_NUMBER_COLUMNS = [
     "rating_count",
 ]
 
+# 전처리 후 최종 컬럼
 FINAL_COLUMNS = [
     "id",
     "name",
@@ -57,15 +59,17 @@ def filter_games(games_df):
     """기간, 본편, 에디션, 상태, 평가 조건으로 게임을 필터링합니다."""
     games_df = games_df.copy()
 
-    # IGDB는 값이 없으면 필드를 생략할 수 있으므로 없는 컬럼을 추가합니다.
+    # IGDB는 값이 없으면 필드를 생략할 수 있으므로 없는 컬럼을 추가
     for column in FILTER_NUMBER_COLUMNS:
         if column not in games_df.columns:
             games_df[column] = None
 
     games_df[FILTER_NUMBER_COLUMNS] = games_df[
         FILTER_NUMBER_COLUMNS
+    # 필터링 할 컬럼들의 값을 숫자형으로 변환, 변환할 수 없는 값은 NaN으로 변경
     ].apply(pd.to_numeric, errors="coerce")
 
+    # 날짜 포맷으로 변형
     games_df["first_release_datetime"] = pd.to_datetime(
         games_df["first_release_date"],
         unit="s",
@@ -76,6 +80,7 @@ def filter_games(games_df):
     start_date = pd.to_datetime(START_DATE, utc=True)
     end_date = pd.to_datetime(END_DATE, utc=True)
 
+    # 설정 기간안의 값들만 필터링
     period_condition = (
         (games_df["first_release_datetime"] >= start_date)
         & (games_df["first_release_datetime"] < end_date)
@@ -147,11 +152,13 @@ def make_release_dataframe(games_df):
         ],
     )
 
+    # 숫자형 변환
     number_columns = ["platform_id", "release_timestamp"]
     release_df[number_columns] = release_df[number_columns].apply(
         pd.to_numeric,
         errors="coerce",
     )
+    # 날짜형 변환
     release_df["release_datetime"] = pd.to_datetime(
         release_df["release_timestamp"],
         unit="s",
@@ -176,12 +183,14 @@ def make_platform_sets(dataframe):
 
 def classify_platforms(games_df, release_df):
     """최초 출시 후 30일 이내 플랫폼 수와 그룹을 계산합니다."""
+    # 포맷이 원하는데로 있고, platform_id와 release_datetime 존재하는 값
     exact_release_df = release_df[
         (release_df["date_format"] == EXACT_DATE_FORMAT)
         & release_df["platform_id"].notna()
         & release_df["release_datetime"].notna()
     ].copy()
 
+    # id 값 기준으로 Dataframe 합치기
     exact_release_df = pd.merge(
         exact_release_df,
         games_df[["id", "first_release_datetime"]],
@@ -189,16 +198,19 @@ def classify_platforms(games_df, release_df):
         how="left",
     )
 
+    # 해당 플랫폼 출시일 - 게임 출시일
     exact_release_df["days_from_first"] = (
         exact_release_df["release_datetime"]
         - exact_release_df["first_release_datetime"]
     ).dt.days
 
+    # 플랫폼 출시일이 게임 출시일 기준 30일 이내인 값
     initial_release_df = exact_release_df[
         (exact_release_df["days_from_first"] >= 0)
         & (exact_release_df["days_from_first"] <= 30)
     ].copy()
 
+    # 플랫폼 출시일 오름차순 정렬, 중복된 플랫폼 id를 삭제(첫번째 값 보존)
     initial_release_df = initial_release_df.sort_values(
         "release_datetime"
     ).drop_duplicates(
@@ -211,9 +223,12 @@ def classify_platforms(games_df, release_df):
     classification_rows = []
 
     for game_id in games_df["id"]:
+        # 초기 플랫폼 가져오기
         initial_ids = initial_platforms.get(game_id, set())
+        # 초기 플랫폼 수 계산
         initial_count = len(initial_ids)
 
+        # 플랫폼 출시 구분
         if initial_count == 1:
             platform_group = "single"
         elif initial_count >= 2:
@@ -246,10 +261,12 @@ def genre_to_text(genres):
             if isinstance(genre, dict):
                 genre_name = genre.get("name")
 
+                # 장르 이름이 존재하는지, 장르 이름이 중복되지 않는지
                 if genre_name and genre_name not in genre_names:
                     genre_names.append(genre_name)
 
     genre_names.sort()
+    # |로 구분
     return "|".join(genre_names)
 
 
@@ -262,6 +279,7 @@ def make_final_dataframe(games_df, classification_df):
         how="left",
     )
 
+    # 초기 출시 플랫폼 수가 0 초과
     final_df = final_df[
         final_df["initial_platform_count_30d"] > 0
     ].copy()
@@ -289,6 +307,7 @@ def make_final_dataframe(games_df, classification_df):
         by=["release_year", "id"]
     ).reset_index(drop=True)
 
+    # 잘 만들었나 확인
     if final_df["id"].duplicated().sum() > 0:
         raise ValueError("최종 데이터에 중복 게임 ID가 있습니다.")
 
