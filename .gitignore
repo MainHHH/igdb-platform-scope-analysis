@@ -11,6 +11,7 @@ ref_data/
 *.ipynb
 .env
 .DS_Store
+data_collection/raw_data/*
 
 # Virtual environments
 .venv
