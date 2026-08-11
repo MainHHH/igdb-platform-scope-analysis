@@ -17,6 +17,9 @@ dependencies = [
     "setuptools>=84.0.0",
 ]
 
+[tool.uv]
+package = false
+
 [project.scripts]
 py-final-project = "py_final_project:main"
 
