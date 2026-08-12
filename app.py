@@ -846,7 +846,6 @@ def show_sidebar(dataframe):
 
     filtered = filter_data(dataframe, year_range, selected_genres)
     st.sidebar.metric("현재 고유 게임 수", f"{filtered['id'].nunique():,}개")
-    st.sidebar.caption("플랫폼 그룹은 비교 왜곡을 막기 위해 공통 필터에서 제외했습니다.")
 
     return filtered, min_sample
 
