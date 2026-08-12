@@ -241,6 +241,51 @@ def add_group_labels(dataframe):
     return result
 
 
+def make_exception_median_figure(
+    single_value,
+    multi_value,
+    genre,
+    release_year,
+):
+    """선택한 예외 조건의 그룹별 실제 평가 수 중앙값 그래프를 만든다."""
+    figure, axis = plt.subplots(figsize=(6.5, 3.8))
+    x_values = [0, 1]
+    median_values = [single_value, multi_value]
+
+    axis.plot(
+        x_values,
+        median_values,
+        color="#B8B8B8",
+        linewidth=3,
+        zorder=1,
+    )
+    axis.scatter(
+        x_values,
+        median_values,
+        c=[PLATFORM_COLORS["single"], PLATFORM_COLORS["multi"]],
+        s=130,
+        zorder=2,
+    )
+
+    for x_value, median_value in zip(x_values, median_values):
+        axis.annotate(
+            f"{median_value:,.0f}",
+            (x_value, median_value),
+            xytext=(0, 9),
+            textcoords="offset points",
+            ha="center",
+            fontweight="bold",
+        )
+
+    axis.set_xticks(x_values, ["초기 single", "초기 multi"])
+    axis.set_ylabel("실제 평가 수 중앙값")
+    axis.set_title(f"{genre} · {release_year} 실제 평가 수 중앙값")
+    axis.set_ylim(0, max(median_values) * 1.2)
+    axis.grid(axis="x", visible=False)
+
+    return figure
+
+
 def show_overall_tab(dataframe):
     st.subheader("초기 단일·멀티플랫폼 게임의 평가 참여도와 이용자 평점은 어떻게 다른가?")
     st.caption(
@@ -608,29 +653,14 @@ def show_exception_tab(dataframe, min_sample):
     chart_column, table_column = st.columns([1, 1.3])
     with chart_column:
         st.markdown("#### 선택 조건의 실제 중앙값")
-        dumbbell_figure, dumbbell_axis = plt.subplots(figsize=(6.5, 2.8))
-        single_value = selected_row["single_rating_count_median"]
-        multi_value = selected_row["multi_rating_count_median"]
-        dumbbell_axis.plot(
-            [single_value, multi_value],
-            [0, 0],
-            color="#B8B8B8",
-            linewidth=4,
-            zorder=1,
+        median_figure = make_exception_median_figure(
+            single_value=selected_row["single_rating_count_median"],
+            multi_value=selected_row["multi_rating_count_median"],
+            genre=selected_row["genre"],
+            release_year=int(selected_row["release_year"]),
         )
-        dumbbell_axis.scatter(
-            [single_value, multi_value],
-            [0, 0],
-            c=[PLATFORM_COLORS["single"], PLATFORM_COLORS["multi"]],
-            s=130,
-            zorder=2,
-        )
-        dumbbell_axis.text(single_value, 0.08, "초기 단일", ha="center")
-        dumbbell_axis.text(multi_value, -0.10, "초기 멀티", ha="center")
-        dumbbell_axis.set_xlabel("실제 평가 수 중앙값")
-        dumbbell_axis.set_yticks([])
-        st.pyplot(dumbbell_figure, width="stretch")
-        plt.close(dumbbell_figure)
+        st.pyplot(median_figure, width="stretch")
+        plt.close(median_figure)
 
     with table_column:
         st.markdown("#### 예외 조건 상세표")
