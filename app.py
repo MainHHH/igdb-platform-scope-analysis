@@ -480,8 +480,6 @@ def show_consistency_tab(dataframe, min_sample):
             hide_index=True,
         )
 
-    st.info("장르·연도별 차이의 방향과 크기가 얼마나 일관적인지를 확인하는 화면이며, 원인을 증명하지는 않습니다.")
-
 
 def show_platform_count_tab(dataframe):
     st.subheader("초기 멀티플랫폼 게임은 초기 플랫폼 수가 많을수록 평가 참여도가 높은가?")
@@ -559,22 +557,6 @@ def show_platform_count_tab(dataframe):
             width="stretch",
             hide_index=True,
         )
-
-    if pd.isna(correlation):
-        relationship_text = "상관계수를 계산할 수 없습니다."
-    elif abs(correlation) < 0.2:
-        relationship_text = "매우 약한 연관성"
-    elif abs(correlation) < 0.4:
-        relationship_text = "약한 연관성"
-    elif abs(correlation) < 0.6:
-        relationship_text = "보통 수준의 연관성"
-    else:
-        relationship_text = "비교적 강한 연관성"
-
-    st.info(
-        f"초기 플랫폼 수와 평가 참여도 사이에는 {relationship_text}이 관찰됩니다. "
-        "상관계수는 플랫폼 수가 관심도를 높였다는 인과관계를 의미하지 않습니다."
-    )
 
 
 def show_exception_tab(dataframe, min_sample):
@@ -685,8 +667,6 @@ def show_exception_tab(dataframe, min_sample):
             hide_index=True,
         )
 
-    st.info("음수인 조건은 초기 단일의 중앙값이 더 높은 예외 사례입니다. 개별 게임의 브랜드·마케팅 등 외부 요인을 함께 확인해야 합니다.")
-
 
 def show_representative_tab(dataframe):
     st.subheader("같은 장르와 출시 연도에서 평가 참여도가 높은·보통·낮은 대표 게임은 무엇인가?")
@@ -789,7 +769,6 @@ def show_representative_tab(dataframe):
         width="stretch",
         hide_index=True,
     )
-    st.info("대표 사례는 현재 선택 조건 내부의 상대적 위치를 보여주며, 게임별 성과의 원인을 설명하는 목록은 아닙니다.")
 
 
 def initialize_filter_state(min_year, max_year):
