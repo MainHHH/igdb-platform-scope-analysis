@@ -12,6 +12,8 @@ ref_data/
 .env
 .DS_Store
 data_collection/raw_data/*
+*.pptx
+*.ndjson
 
 # Virtual environments
 .venv
@@ -19,3 +21,4 @@ data_collection/raw_data/*
 # codex
 .superpowers
 tests
+.pptx-streamlit-build
