@@ -355,17 +355,6 @@ def show_overall_tab(dataframe):
             hide_index=True,
         )
 
-    if multi["rating_count_median"] > single["rating_count_median"]:
-        st.info(
-            "현재 조건에서는 초기 멀티플랫폼 게임의 평가 수 중앙값이 더 높게 관찰됩니다. "
-            "이는 플랫폼 전략의 인과 효과가 아니라 평가가 존재하는 게임 안에서의 연관성입니다."
-        )
-    else:
-        st.info(
-            "현재 조건에서는 초기 단일플랫폼 게임의 평가 수 중앙값이 같거나 더 높게 관찰됩니다. "
-            "장르와 출시 연도에 따라 결과가 달라지는지 다음 탭에서 확인할 수 있습니다."
-        )
-
 
 def show_consistency_tab(dataframe, min_sample):
     st.subheader("초기 단일·멀티플랫폼의 차이가 출시 연도와 장르별로도 반복되는가?")
