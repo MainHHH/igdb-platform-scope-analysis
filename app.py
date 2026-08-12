@@ -33,6 +33,7 @@ PLATFORM_COLORS = {"single": "#4C78A8", "multi": "#F58518"}
 BUCKET_ORDER = ["2개", "3개", "4개", "5개 이상"]
 
 
+# 함수 실행 결과를 캐시에 저장
 @st.cache_data(show_spinner=False)
 def load_data(file_path):
     """전처리된 CSV를 읽고 대시보드 필수 컬럼을 확인한다."""
@@ -54,6 +55,7 @@ def make_genre_dataframe(dataframe):
     genre_dataframe["genre"] = (
         genre_dataframe["genres"].fillna("").str.split("|")
     )
+    # explode() -> 리스트의 각 값을 별도의 행에 저장
     genre_dataframe = genre_dataframe.explode("genre")
     genre_dataframe["genre"] = genre_dataframe["genre"].str.strip()
     genre_dataframe = genre_dataframe[genre_dataframe["genre"] != ""]
